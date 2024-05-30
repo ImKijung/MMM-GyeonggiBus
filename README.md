@@ -3,6 +3,11 @@ MagicMirror Gyeonggi-Do Bus
 
 Additional Module for MagicMirror² https://github.com/MichMich/MagicMirror
 
+## iM 수정 사항
+
+* 서울 버스 정보에 맞도록 수정
+* 출력 정보를 1초 단위로 시간이 업데이트하도록 수정
+
 # Module: MMM-GyeonggiBus
 Magic Mirror Module for Gyeonggi-Do, South Korea, bus information.   
 Returns real-time info about a SPECIFIC bus stop and a SPECIFIC bus route.
