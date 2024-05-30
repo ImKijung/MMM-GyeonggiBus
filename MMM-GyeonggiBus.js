@@ -2,16 +2,19 @@
  * Module: GyeonggiBus
  *
  * By Juil Kim
+ * modified by KijungiM
  * MIT Licensed.
  */
+
 Module.register("MMM-GyeonggiBus", {
     requiresVersion: "2.12.0",
     default: {
-        apiBase: "http://apis.data.go.kr/6410000/busarrivalservice/getBusArrivalList",
+        apiBase: "http://ws.bus.go.kr/api/rest/arrive/getArrInfoByRoute",
         serviceKey: "",
-        stationId: 236000618,
-        routeId: 236000222,
-        header: "3006번 버스 도착 정보",
+        stId: 119000011, //역정보
+        busRouteId: 100100093, //버스 아이디
+        header: "640번 버스 도착 정보",
+        ord: 26, // 버스가 역에 도착하는 순서
         updateInterval: 1000 * 60 * 2, // refresh every 2 minutes, minimum 10 seconds
     },
 
@@ -27,10 +30,11 @@ Module.register("MMM-GyeonggiBus", {
     },
 
     start: function() {
-        Log.info("Starting module: " + this.name);
+        Log.info("11111 Starting module: " + this.name);
         this.busInfo = [];
         var self = this
         this.loaded = false;
+        this.updateInterval = null;
     },
 
 	getDom: function() {
@@ -42,53 +46,56 @@ Module.register("MMM-GyeonggiBus", {
         }
         var busTable = document.createElement("table");
         busTable.className = "small";
-        if(this.busInfo.length > 0) {
-            for(var t in this.busInfo) {
-                var bus = this.busInfo[t];
-                if(bus.routeId._text == this.config.routeId) {
-                    var row = document.createElement("tr");
-                    row.className = "title bright";
-                    busTable.appendChild(row);
+        
+        var row = document.createElement("tr");
+        row.className = "title bright";
+        busTable.appendChild(row);
 
-                    var predictTime1 = document.createElement("td");
-                    predictTime1.className = "arriving";
-                    predictTime1.innerHTML = bus.predictTime1._text + "분";
-                    row.appendChild(predictTime1);
+        var busArrivalTime = document.createElement("td");
+        busArrivalTime.className = "arriving";
+        busArrivalTime.innerHTML = this.formatTime(this.busInfo.arrmsg1._text) + "<br/>" + this.formatTime(this.busInfo.arrmsg2._text);
+        row.appendChild(busArrivalTime);
 
-                    var locationNo1 = document.createElement("td");
-                    locationNo1.innerHTML = bus.locationNo1._text + "정류장";
-                    row.appendChild(locationNo1);
-
-                    var remainSeatCnt1 = document.createElement("td");
-                    remainSeatCnt1.className = "light";
-                    remainSeatCnt1.innerHTML = bus.remainSeatCnt1._text + "석";
-                    row.appendChild(remainSeatCnt1);
-
-                    if(bus.predictTime2.hasOwnProperty("_text")) {
-                        var row2 = document.createElement("tr");
-                        row2.className = "dimmed"
-                        busTable.appendChild(row2);
-    
-                        var predictTime2 = document.createElement("td");
-                        predictTime2.className = "arriving";
-                        predictTime2.innerHTML = bus.predictTime2._text + "분";
-                        row2.appendChild(predictTime2);
-
-                        var locationNo2 = document.createElement("td");
-                        locationNo2.innerHTML = bus.locationNo2._text + "정류장";
-                        row2.appendChild(locationNo2);
-
-                        var remainSeatCnt2 = document.createElement("td");
-                        remainSeatCnt2.className = "light";
-                        remainSeatCnt2.innerHTML = bus.remainSeatCnt2._text + "석";
-                        row2.appendChild(remainSeatCnt2);
-                    }
-                }
-            }
-        }
         wrapper.appendChild(busTable);
 		return wrapper;
 	},
+    // 7분33초후[4번째 전]
+    formatTime: function(timeText) {
+        let match = timeText.match(/(\d+)분(\d+)초후/);
+        if (match) {
+            let minutes = parseInt(match[1]);
+            let seconds = parseInt(match[2]);
+            return `${minutes}분${seconds}초후${timeText.replace(match[0], "")}`;
+        }
+        return timeText;
+    },
+
+    updateTime: function() {
+        if (this.busInfo && this.busInfo.arrmsg1 && this.busInfo.arrmsg2) {
+            this.busInfo.arrmsg1._text = this.decrementTime(this.busInfo.arrmsg1._text);
+            this.busInfo.arrmsg2._text = this.decrementTime(this.busInfo.arrmsg2._text);
+            this.updateDom();
+        }
+    },
+
+    decrementTime: function(timeText) {
+        let match = timeText.match(/(\d+)분(\d+)초후/);
+        if (match) {
+            let minutes = parseInt(match[1]);
+            let seconds = parseInt(match[2]);
+            seconds--;
+            if (seconds < 0) {
+                seconds = 59;
+                minutes--;
+            }
+            if (minutes < 0) {
+                minutes = 0;
+                seconds = 0;
+            }
+            return `${minutes}분${seconds}초후${timeText.replace(match[0], "")}`;
+        }
+        return timeText;
+    },
 
     getBusInfo: function() {
         Log.info("Requesting bus info");
@@ -104,9 +111,14 @@ Module.register("MMM-GyeonggiBus", {
         switch (notification) {
             case "DOM_OBJECTS_CREATED":
                 this.getBusInfo();
-                var timer = setInterval(() => {
-                        this.getBusInfo();
+                var busInfoTimer = setInterval(() => {
+                    this.getBusInfo();
                 }, this.config.updateInterval);
+                
+                var updateTimeTimer = setInterval(() => {
+                    this.updateTime();
+                }, 1000);
+
                 break;
         }
 	},
@@ -123,5 +135,5 @@ Module.register("MMM-GyeonggiBus", {
                 this.updateDom();
                 break;
         }
-    }    
-})
+    }
+});
